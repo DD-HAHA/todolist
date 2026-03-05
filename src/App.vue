@@ -3,9 +3,7 @@
     <!-- 侧边栏 Sidebar -->
     <aside class="w-64 border-r border-white/5 flex flex-col p-6 space-y-8 bg-[#0B0B0B]">
       <div class="flex items-center space-x-2 px-2">
-        <div class="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.5)]">
-          <div class="w-2 h-2 bg-white rounded-full"></div>
-        </div>
+        <img src="./assets/logo_rounded.png" alt="FocusLog Logo" class="w-8 h-8 rounded-lg shadow-[0_0_15px_rgba(139,92,246,0.3)] object-cover" />
         <span class="font-bold tracking-tight text-white text-lg">FocusLog</span>
       </div>
       
@@ -106,14 +104,15 @@
                     <div
                       v-for="day in week"
                       :key="day.date"
-                      class="w-3 h-3 rounded-sm transition-colors duration-150 cursor-pointer"
+                      class="w-3 h-3 rounded-sm transition-colors duration-150"
                       :class="[
-                        getHeatmapCellClass(day),
-                        heatmapSelectedDate === day.date ? 'ring-1 ring-white/50 ring-inset' : ''
+                        day.isFuture ? 'bg-transparent' : getHeatmapCellClass(day),
+                        (heatmapSelectedDate === day.date && !day.isFuture) ? 'ring-1 ring-white/50 ring-inset' : '',
+                        !day.isFuture ? 'cursor-pointer' : ''
                       ]"
-                      @mouseenter="showHeatmapTooltip(day, $event)"
+                      @mouseenter="!day.isFuture && showHeatmapTooltip(day, $event)"
                       @mouseleave="hideHeatmapTooltip"
-                      @click="selectHeatmapDate(day.date)"
+                      @click="!day.isFuture && selectHeatmapDate(day.date)"
                     ></div>
                   </div>
                 </div>
@@ -131,32 +130,59 @@
             </div>
           </section>
 
-          <!-- 点击热力图某天后，主列表只显示该日任务 -->
+          <!-- 选中热力图某天后：变为只读模式 -->
           <div
             v-if="heatmapSelectedDate"
             class="mb-4 flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10"
           >
-            <span class="text-[11px] text-gray-400">正在查看 <span class="text-gray-200">{{ heatmapSelectedDate }}</span> 的任务</span>
+            <span class="text-[11px] text-gray-400">正在查看 <span class="text-gray-200">{{ heatmapSelectedDate }}</span> 的历史记录（只读模式）</span>
             <button
               type="button"
               class="text-[11px] text-gray-500 hover:text-purple-400"
               @click="clearHeatmapDate"
             >
-              清除 · 查看全部
+              退出只读模式 · 查看今日
             </button>
           </div>
 
-          <div class="relative mb-3 group">
+          <div v-if="!heatmapSelectedDate" class="relative mb-3 group">
             <div class="absolute inset-y-0 left-4 flex items-center text-gray-500">
               <Plus :size="18" />
             </div>
             <input 
+              ref="newTodoInput"
               type="text" 
               v-model="newTodo"
-              @keyup.enter="addTodo"
-              placeholder="添加一项任务... (Enter 保存)"
+              @input="handleTodoInput"
+              @keydown="handleTodoKeydown"
+              placeholder="添加一项任务... (支持 #标签名 快捷选择，Enter 保存)"
               class="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-12 pr-12 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all shadow-2xl"
             />
+            
+            <!-- 标签自动完成下拉框 -->
+            <div
+              v-if="mentionState.visible"
+              class="absolute left-4 top-full mt-2 w-48 bg-[#161616] border border-white/10 rounded-xl shadow-2xl z-30 py-2"
+              @mousedown.prevent
+            >
+              <div v-if="filteredMentionTags.length === 0" class="px-3 py-1 text-[11px] text-gray-500">
+                按 Enter 回车可直接新建名为 "{{ mentionState.query }}" 的标签
+              </div>
+              <div v-else class="space-y-0.5 max-h-48 overflow-y-auto px-1.5">
+                <button
+                  v-for="(tag, index) in filteredMentionTags"
+                  :key="tag.id"
+                  type="button"
+                  class="w-full flex items-center space-x-2 px-2 py-1.5 rounded-lg text-xs transition-colors"
+                  :class="mentionState.selectedIndex === index ? 'bg-purple-600/30 text-white' : 'text-gray-300 hover:bg-white/[0.06]'"
+                  @mousedown.prevent="selectMentionTag(tag)"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: tag.color }"></span>
+                  <span>{{ tag.name }}</span>
+                </button>
+              </div>
+            </div>
+
             <button
               type="button"
               class="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-200 transition-colors"
@@ -231,14 +257,18 @@
           >
             <span>已选中：</span>
             <div class="flex flex-wrap gap-1">
-              <span
+              <button
                 v-for="tag in selectedTagsForNewTodo"
                 :key="tag.id"
-                class="px-2 py-0.5 rounded-full border text-[10px] bg-white/[0.02]"
+                type="button"
+                class="px-2 py-0.5 rounded-full border text-[10px] bg-white/[0.02] hover:bg-white/10 transition-colors flex items-center group cursor-pointer"
                 :style="{ borderColor: tag.color, color: tag.color }"
+                @click="toggleNewTodoTag(tag.id)"
+                title="点击移除标签"
               >
-                {{ tag.name }}
-              </span>
+                <span>{{ tag.name }}</span>
+                <span class="ml-1 opacity-40 group-hover:opacity-100">&times;</span>
+              </button>
             </div>
           </div>
 
@@ -248,8 +278,8 @@
               class="group flex items-center space-x-4 bg-white/[0.01] border border-white/[0.05] p-4 rounded-xl hover:bg-white/[0.03] hover:border-white/10 transition-all cursor-pointer"
             >
               <div 
-                @click="toggleTodo(todo)"
-                class="w-5 h-5 border-2 border-white/20 rounded-md group-hover:border-purple-500/50 flex items-center justify-center transition-all"
+                @click.stop="toggleTodo(todo)"
+                class="w-5 h-5 border-2 border-white/20 rounded-md group-hover:border-purple-500/50 flex items-center justify-center transition-all bg-transparent"
               >
                 <Check v-if="todo.completed" :size="12" class="text-white" />
               </div>
@@ -292,9 +322,80 @@
               >
                 <Flame :size="14" class="opacity-70" />
               </span>
-              <button @click.stop="deleteTodo(todo.id)" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all">
-                <Trash2 :size="15" />
-              </button>
+              <div class="opacity-0 group-hover:opacity-100 flex items-center space-x-2 transition-all">
+                <div class="relative flex items-center">
+                  <button @click.stop="toggleSnoozePopoverForTodo(todo.id)" class="text-gray-500 hover:text-orange-400 transition-colors p-1" title="推迟任务">
+                    <Clock :size="15" />
+                  </button>
+                  
+                  <!-- 推迟任务 Popover -->
+                  <div
+                    v-if="activeTodoSnoozePopoverId === todo.id"
+                    class="absolute right-0 top-full mt-2 w-40 bg-[#161616] border border-white/10 rounded-xl shadow-2xl z-30 py-2"
+                  >
+                    <div class="px-3 pb-2 mb-2 border-b border-white/10 flex items-center justify-between">
+                      <span class="text-[11px] text-gray-400">推迟至...</span>
+                      <button @click.stop="activeTodoSnoozePopoverId = null" class="text-[11px] text-gray-500 hover:text-gray-300">关闭</button>
+                    </div>
+                    <div class="space-y-1 px-1.5">
+                      <button
+                        type="button"
+                        class="w-full flex items-center px-2 py-1.5 rounded-lg hover:bg-white/[0.06] text-xs text-gray-200"
+                        @click.stop="snoozeTodo(todo, 1)"
+                      >
+                        🌞 明天
+                      </button>
+                      <button
+                        type="button"
+                        class="w-full flex items-center px-2 py-1.5 rounded-lg hover:bg-white/[0.06] text-xs text-gray-200"
+                        @click.stop="snoozeTodo(todo, 7)"
+                      >
+                        📆 下周
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="relative flex items-center">
+                  <button @click.stop="toggleTagPopoverForTodo(todo.id)" class="text-gray-500 hover:text-purple-400 transition-colors p-1" title="修改标签">
+                    <Tags :size="15" />
+                  </button>
+                  
+                  <!-- 修改现存任务的标签 Popover -->
+                  <div
+                    v-if="activeTodoTagPopoverId === todo.id"
+                    class="absolute right-0 top-full mt-2 w-52 bg-[#161616] border border-white/10 rounded-xl shadow-2xl z-30 py-2"
+                  >
+                    <div class="px-3 pb-2 mb-2 border-b border-white/10 flex items-center justify-between">
+                      <span class="text-[11px] text-gray-400">修改标签</span>
+                      <button @click.stop="activeTodoTagPopoverId = null" class="text-[11px] text-gray-500 hover:text-gray-300">关闭</button>
+                    </div>
+                    <div v-if="tags.length === 0" class="px-3 text-[11px] text-gray-600">暂无标签项</div>
+                    <div v-else class="space-y-1 max-h-48 overflow-y-auto px-1.5">
+                      <button
+                        v-for="tag in tags"
+                        :key="tag.id"
+                        type="button"
+                        class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.06] text-xs text-gray-200"
+                        @click.stop="toggleExistingTodoTag(todo, tag.id)"
+                      >
+                        <div class="flex items-center space-x-2">
+                          <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: tag.color }"></span>
+                          <span>{{ tag.name }}</span>
+                        </div>
+                        <Check v-if="(todoTagsByTodoId[todo.id] || []).includes(tag.id)" :size="12" class="text-purple-400" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button @click.stop="startEdit(todo)" class="text-gray-500 hover:text-blue-400 transition-colors p-1" title="编辑任务">
+                  <Pencil :size="15" />
+                </button>
+                <button @click.stop="deleteTodo(todo.id)" class="text-gray-500 hover:text-red-400 transition-colors p-1" title="删除">
+                  <Trash2 :size="15" />
+                </button>
+              </div>
             </div>
 
             <div v-if="displayedCompletedTodos.length > 0" class="flex items-center py-8">
@@ -344,6 +445,60 @@
               <button @click.stop="deleteTodo(todo.id)" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all">
                 <Trash2 :size="15" />
               </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- ══════ 未来规划 ══════ -->
+        <template v-else-if="currentView === 'upcoming'">
+          <header class="mb-12">
+            <h1 class="text-3xl font-semibold text-white mb-2 tracking-tight">未来规划</h1>
+            <p class="text-gray-500 text-sm font-light">查看已经推迟或预定在未来的任务</p>
+          </header>
+
+          <div v-if="upcomingGroups.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-600">
+            <CalendarClock :size="40" class="mb-4 opacity-30" />
+            <p class="text-sm">暂无未来规划的任务</p>
+          </div>
+
+          <div v-for="group in upcomingGroups" :key="group.date" class="mb-10">
+            <div class="flex items-center mb-4">
+              <div class="flex-1 h-[1px] bg-white/5"></div>
+              <span class="px-4 text-xs text-gray-500 font-medium">{{ group.label }}</span>
+              <div class="flex-1 h-[1px] bg-white/5"></div>
+            </div>
+            <div class="space-y-2">
+              <div 
+                v-for="todo in group.todos" :key="todo.id"
+                class="group flex items-center space-x-4 bg-white/[0.01] border border-white/[0.05] p-4 rounded-xl hover:bg-white/[0.03] hover:border-white/10 transition-all"
+              >
+                <button
+                   @click.stop="moveToToday(todo)"
+                   class="flex-shrink-0 text-[11px] px-2 py-1 rounded border border-white/20 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                   title="移回今日"
+                >
+                  移至今日
+                </button>
+                <div class="flex-1 space-y-1">
+                  <span class="text-sm text-gray-300">{{ todo.text }}</span>
+                  <div
+                    v-if="getTagsForTodo(todo).length"
+                    class="flex flex-wrap gap-1 mt-0.5"
+                  >
+                    <span
+                      v-for="tag in getTagsForTodo(todo)"
+                      :key="tag.id"
+                      class="px-1.5 py-0.5 rounded-full text-[10px] bg-white/[0.03] border"
+                      :style="{ borderColor: tag.color, color: tag.color }"
+                    >
+                      {{ tag.name }}
+                    </span>
+                  </div>
+                </div>
+                <button @click.stop="deleteTodo(todo.id)" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1">
+                  <Trash2 :size="15" />
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -574,15 +729,15 @@
           <p class="text-[11px] text-gray-600">密钥仅保存在本地 SQLite 数据库中，不会上传至任何服务器。</p>
 
           <div class="pt-6 border-t border-white/10">
-            <p class="text-xs text-gray-400 mb-2">体验数据</p>
-            <p class="text-[11px] text-gray-600 mb-3">生成过去一周的示例任务与存档，便于查看热力图、历史回顾和导出效果。</p>
+            <p class="text-xs text-gray-400 mb-2">体验数据（展示用）</p>
+            <p class="text-[11px] text-gray-600 mb-3">生成过去半年的 PM (产品经理) 示例任务与存档，便于查看热力图、历史回顾和导出效果。</p>
             <button
               type="button"
               :disabled="seedDemoLoading"
               @click="seedDemoData"
               class="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
             >
-              {{ seedDemoLoading ? '生成中…' : '生成一周示例数据' }}
+              {{ seedDemoLoading ? '生成中…' : '生成半年 PM 示例数据' }}
             </button>
             <p v-if="seedDemoMessage" class="mt-2 text-[11px]" :class="seedDemoMessage.startsWith('已') ? 'text-green-400' : 'text-amber-400'">{{ seedDemoMessage }}</p>
           </div>
@@ -695,7 +850,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import {
   LayoutDashboard, Calendar, Archive, Check, Sparkles,
-  Plus, Trash2, Settings, KeyRound, Loader2, Tags, Flame
+  Plus, Trash2, Settings, KeyRound, Loader2, Tags, Flame, Pencil, Clock, CalendarClock
 } from 'lucide-vue-next';
 import Database from '@tauri-apps/plugin-sql';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
@@ -709,6 +864,7 @@ let db = null;
 const currentView = ref('today');
 const tabs = [
   { id: 'today',   label: '今日待办', icon: LayoutDashboard },
+  { id: 'upcoming', label: '未来规划', icon: CalendarClock },
   { id: 'history', label: '历史回顾', icon: Calendar },
   { id: 'review',  label: '回顾中心', icon: Sparkles },
   { id: 'archive', label: '总结存档', icon: Archive },
@@ -767,6 +923,18 @@ const createTagPopoverOpen = ref(false);
 const newTodoSelectedTagIds = ref([]);
 const todoTagsByTodoId = ref({});
 const activeTagFilterId = ref(null);
+const activeTodoTagPopoverId = ref(null);
+const activeTodoSnoozePopoverId = ref(null);
+
+const newTodoInput = ref(null);
+
+// 标签 Mention (#) 状态
+const mentionState = ref({
+  visible: false,
+  query: '',
+  startIndex: -1,
+  selectedIndex: 0
+});
 
 // 热力图状态
 const heatmapWeeks = ref([]);
@@ -866,18 +1034,53 @@ const filteredCompletedTodos = computed(() => {
   });
 });
 
-// 主列表展示：在标签筛选基础上，若点击了热力图某天则只显示该日任务
+// 主列表展示：如果未选中历史某天，则仅显示 target_date <= todayDate 的“可做”任务
+// 如果选中了历史某天，则展示“那天完成的”或“那天创建的”任务
 const displayedActiveTodos = computed(() => {
   const list = filteredActiveTodos.value;
   const date = heatmapSelectedDate.value;
-  if (!date) return list;
+  if (!date) return list.filter(t => (t.target_date || t.created_at.slice(0, 10)) <= todayDate);
   return list.filter(t => (t.created_at || '').slice(0, 10) === date);
 });
 const displayedCompletedTodos = computed(() => {
   const list = filteredCompletedTodos.value;
   const date = heatmapSelectedDate.value;
-  if (!date) return list;
+  if (!date) return list.filter(t => (t.target_date || t.created_at.slice(0, 10)) <= todayDate);
+  // 对于过去的日子，更在意“那天完成的”，旧版本先用 created_at 兼容一下
   return list.filter(t => (t.created_at || '').slice(0, 10) === date);
+});
+
+// 未来的任务视图数据 (Active 且 target_date > todayDate)
+const displayedUpcomingTodos = computed(() => {
+  const list = filteredActiveTodos.value;
+  return list.filter(t => t.target_date && t.target_date > todayDate)
+             .sort((a,b) => a.target_date.localeCompare(b.target_date));
+});
+
+const upcomingGroups = computed(() => {
+  const groups = {};
+  displayedUpcomingTodos.value.forEach(todo => {
+    const d = todo.target_date;
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(todo);
+  });
+  
+  const dObj = new Date();
+  dObj.setDate(dObj.getDate() + 1);
+  const tomorrowStr = `${dObj.getFullYear()}-${pad(dObj.getMonth() + 1)}-${pad(dObj.getDate())}`;
+
+  return Object.keys(groups).sort().map(date => ({
+    date,
+    label: date === tomorrowStr ? '🌞 明天' : '📆 ' + date,
+    todos: groups[date]
+  }));
+});
+
+// Mention 标签过滤
+const filteredMentionTags = computed(() => {
+  if (!mentionState.value.query) return tags.value;
+  const query = mentionState.value.query.toLowerCase();
+  return tags.value.filter(t => t.name.toLowerCase().includes(query));
 });
 
 const tagIncompleteCount = computed(() => {
@@ -980,6 +1183,10 @@ async function initDB() {
       await db.execute(`ALTER TABLE todos ADD COLUMN rolled_count INTEGER NOT NULL DEFAULT 0`);
     } catch { /* column already exists */ }
 
+    try {
+      await db.execute(`ALTER TABLE todos ADD COLUMN target_date TEXT`);
+    } catch { /* column already exists */ }
+
     dbReady.value = true;
     await rolloverTodos();
     await loadTodos();
@@ -1034,9 +1241,13 @@ async function getCompletedCountsLastYear(tagId = null) {
 
   const formatDate = (d) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  
+  // 扩大时间差查询范围，保证首尾星期都能完整闭环
   const end = new Date();
+  end.setDate(end.getDate() + 14);
   const start = new Date();
-  start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - 400);
+  
   const startDateStr = formatDate(start);
   const endDateStr = formatDate(end);
 
@@ -1085,41 +1296,52 @@ async function loadHeatmap(tagId = null) {
       countMap[item.date] = item.count;
     }
 
-    const weeks = 52;
+    const weeksToDisplay = 52;
     const daysPerWeek = 7;
-    const totalDays = weeks * daysPerWeek;
 
-    // 使用 todayDate 作为统一的“今天”基准，避免与系统时间偏差
-    const [y, m, d0] = todayDate.split('-').map(Number);
-    const today = new Date(y, m - 1, d0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // 从 (today - (totalDays - 1) 天) 开始，依次往后推 totalDays 天
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - (totalDays - 1));
+    const todayDayOfWeek = today.getDay(); // 0: Sun, 1: Mon, ... 6: Sat
+    
+    // 当前周的第一天 (周日)
+    const startOfCurrentWeek = new Date(today);
+    startOfCurrentWeek.setDate(today.getDate() - todayDayOfWeek);
 
+    // 热力图起点 (前面向前推 51 周)
+    const startOfGrid = new Date(startOfCurrentWeek);
+    startOfGrid.setDate(startOfCurrentWeek.getDate() - (weeksToDisplay - 1) * 7);
+
+    const totalCells = weeksToDisplay * daysPerWeek;
     const cells = [];
-    for (let i = 0; i < totalDays; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
+
+    for (let i = 0; i < totalCells; i++) {
+      const d = new Date(startOfGrid);
+      d.setDate(startOfGrid.getDate() + i);
+
+      const isFuture = d.getTime() > today.getTime();
       const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      const count = countMap[dateStr] || 0;
-      cells.push({ date: dateStr, count });
+      
+      const count = isFuture ? 0 : (countMap[dateStr] || 0);
+      cells.push({ date: dateStr, count, isFuture });
     }
 
     const result = [];
-    for (let w = 0; w < weeks; w++) {
+    for (let w = 0; w < weeksToDisplay; w++) {
       const start = w * daysPerWeek;
       const end = start + daysPerWeek;
       result.push(cells.slice(start, end));
     }
     heatmapWeeks.value = result;
 
-    // 默认滚动到最右侧，保证一进来就看到“最近一周”
-    await nextTick();
-    if (heatmapScrollEl.value) {
-      const el = heatmapScrollEl.value;
-      el.scrollLeft = el.scrollWidth;
-    }
+    // 默认滚动到最右侧，保证一进来就看到“最近一周”。
+    nextTick(() => {
+      setTimeout(() => {
+        if (heatmapScrollEl.value) {
+          heatmapScrollEl.value.scrollLeft = heatmapScrollEl.value.scrollWidth;
+        }
+      }, 150); // Increased slightly to ensure rendering is fully complete
+    });
   } catch (e) {
     console.error('loadHeatmap failed:', e);
     heatmapWeeks.value = [];
@@ -1131,6 +1353,15 @@ async function loadHeatmap(tagId = null) {
 // 侧边栏切换标签时，热力图只显示该标签的完成分布
 watch(activeTagFilterId, (tagId) => {
   if (db) loadHeatmap(tagId ?? null);
+});
+
+// 当视图切换回今日视图时自动聚焦焦点
+watch(currentView, (val) => {
+  if (val === 'today') {
+    nextTick(() => {
+      newTodoInput.value?.focus();
+    });
+  }
 });
 
 function selectHeatmapDate(dayDate) {
@@ -1174,9 +1405,11 @@ async function seedDemoData() {
     let tagIds = [...(tags.value.map(t => t.id))];
     if (tagIds.length === 0) {
       const tagList = [
-        { name: '工作', color: '#3B82F6' },
-        { name: '学习', color: '#22C55E' },
-        { name: '生活', color: '#F97316' }
+        { name: '需求', color: '#3B82F6' },
+        { name: '研发', color: '#8B5CF6' },
+        { name: '数据', color: '#10B981' },
+        { name: '会议', color: '#F59E0B' },
+        { name: '规划', color: '#EF4444' }
       ];
       for (const { name, color } of tagList) {
         const res = await db.execute('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color]);
@@ -1187,27 +1420,34 @@ async function seedDemoData() {
     }
 
     const taskTemplates = [
-      '完成需求文档评审', '与设计对齐交互方案', '写周报', '回复邮件', '参加站会', '推进 API 联调', '学习 Vue 3 组合式 API',
-      '阅读技术博客', '整理会议纪要', '修复 Bug', '代码 Review', '更新依赖', '写单元测试', '部署测试环境',
-      '运动 30 分钟', '整理桌面', '买日用品', '看书 1 章', '梳理产品 backlog', '与前端联调接口'
+      '撰写新版本 PRD', '需求评审会议', '梳理核心指标埋点', '竞品体验与分析', '周报总结与核心数据盘点',
+      '与开发评审技术方案', '跟进前端联调进度', '验收提测版本', '参加每日站会', '制定下个版本架构与 backlog',
+      '查看 AB 实验打点数据', '写用户反馈分析报告', '处理客诉与沟通工单', '跟进线上紧急 Bug 修复',
+      '与设计对齐高保真交互图', '运营活动配置与上线复盘', '输出产品路线图 (Roadmap)'
     ];
 
-    for (let d = 6; d >= 0; d--) {
+    for (let d = 180; d >= 0; d--) {
       const dateStr = getDateNDaysAgo(d);
-      const nTasks = 4 + Math.floor(Math.random() * 4);
+      const isWeekend = new Date(dateStr).getDay() === 0 || new Date(dateStr).getDay() === 6;
+      // Generate fewer tasks on weekends
+      const maxTasks = isWeekend ? 3 : 8;
+      const minTasks = isWeekend ? 0 : 3;
+      const nTasks = minTasks + Math.floor(Math.random() * (maxTasks - minTasks + 1));
+      
       for (let i = 0; i < nTasks; i++) {
         const text = taskTemplates[Math.floor(Math.random() * taskTemplates.length)];
-        const completed = Math.random() < 0.65;
-        const h1 = 8 + Math.floor(Math.random() * 4);
+        const completed = Math.random() < 0.8; // PMs usually have a higher completion or logging rate
+        const h1 = 9 + Math.floor(Math.random() * 3);
         const m1 = Math.floor(Math.random() * 60);
         const created = `${dateStr} ${pad(h1)}:${pad(m1)}:00`;
         const updated = completed
-          ? `${dateStr} ${pad(14 + Math.floor(Math.random() * 4))}:${pad(Math.floor(Math.random() * 60))}:00`
+          ? `${dateStr} ${pad(14 + Math.floor(Math.random() * 6))}:${pad(Math.floor(Math.random() * 60))}:00`
           : created;
         const tagId = tagIds.length > 0 ? tagIds[Math.floor(Math.random() * tagIds.length)] : null;
+        const rolled_count = (!completed && d > 0 && Math.random() < 0.3) ? Math.floor(Math.random() * 3) + 1 : 0;
         const res = await db.execute(
-          'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count) VALUES (?, ?, 0, ?, ?, ?, 0)',
-          [text, completed ? 1 : 0, created, updated, tagId]
+          'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count, target_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [text, completed ? 1 : 0, rolled_count > 0 ? 1 : 0, created, updated, tagId, rolled_count, dateStr]
         );
         const todoId = res.lastInsertId;
         if (tagId != null) {
@@ -1233,7 +1473,7 @@ async function seedDemoData() {
     await loadTodoTags();
     await loadHeatmap(activeTagFilterId.value ?? null);
     await loadArchives();
-    seedDemoMessage.value = '已生成一周示例数据，热力图与历史已更新。';
+    seedDemoMessage.value = '已生成近半年 PM 示例数据，热力图与历史已更新。';
   } catch (e) {
     console.error('seedDemoData failed:', e);
     seedDemoMessage.value = '生成失败: ' + (e.message || String(e));
@@ -1287,8 +1527,16 @@ async function deleteTagItem(id) {
   if (!db) return;
   try {
     await db.execute('UPDATE todos SET tag_id = NULL WHERE tag_id = ?', [id]);
+    await db.execute('DELETE FROM todo_tags WHERE tag_id = ?', [id]);
     await db.execute('DELETE FROM tags WHERE id = ?', [id]);
+    
+    // 从前端状态中移除
     tags.value = tags.value.filter(t => t.id !== id);
+    
+    // 清理新任务选中状态
+    newTodoSelectedTagIds.value = newTodoSelectedTagIds.value.filter(tId => tId !== id);
+    
+    // 重新拉取一次任务与标签关联关系，使得 UI 立即刷新
     await loadTodoTags();
   } catch (e) {
     console.error('deleteTagItem failed:', e);
@@ -1313,6 +1561,83 @@ function getTodoTagIds(todo) {
   // 兼容旧数据：如果 todo_tags 里没有记录，但 todos 表上有 tag_id，则视为单标签
   if (todo.tag_id) return [todo.tag_id];
   return [];
+}
+
+async function toggleExistingTodoTag(todo, tagId) {
+  if (!db) return;
+  const currentIds = todoTagsByTodoId.value[todo.id] || [];
+  const idx = currentIds.indexOf(tagId);
+  const isAdding = idx === -1;
+  try {
+    if (isAdding) {
+      await db.execute(
+        'INSERT INTO todo_tags (todo_id, tag_id) VALUES (?, ?)',
+        [todo.id, tagId]
+      );
+      todoTagsByTodoId.value[todo.id] = [...currentIds, tagId];
+    } else {
+      await db.execute(
+        'DELETE FROM todo_tags WHERE todo_id = ? AND tag_id = ?',
+        [todo.id, tagId]
+      );
+      const nextIds = [...currentIds];
+      nextIds.splice(idx, 1);
+      todoTagsByTodoId.value[todo.id] = nextIds;
+    }
+  } catch (e) {
+    console.error('toggleExistingTodoTag failed:', e);
+  }
+}
+
+function toggleTagPopoverForTodo(todoId) {
+  if (activeTodoTagPopoverId.value === todoId) {
+    activeTodoTagPopoverId.value = null;
+  } else {
+    activeTodoTagPopoverId.value = todoId;
+  }
+}
+
+function toggleSnoozePopoverForTodo(todoId) {
+  if (activeTodoSnoozePopoverId.value === todoId) {
+    activeTodoSnoozePopoverId.value = null;
+  } else {
+    activeTodoSnoozePopoverId.value = todoId;
+  }
+}
+
+async function snoozeTodo(todo, days) {
+  if (!db) return;
+  try {
+    const ts = localNow();
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    const targetStr = `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}`;
+
+    await db.execute(
+      'UPDATE todos SET target_date = ?, updated_at = ? WHERE id = ?',
+      [targetStr, ts, todo.id]
+    );
+    todo.target_date = targetStr;
+    todo.updated_at = ts;
+    activeTodoSnoozePopoverId.value = null;
+  } catch (e) {
+    console.error('snoozeTodo failed:', e);
+  }
+}
+
+async function moveToToday(todo) {
+  if (!db) return;
+  try {
+    const ts = localNow();
+    await db.execute(
+      'UPDATE todos SET target_date = ?, updated_at = ? WHERE id = ?',
+      [todayDate, ts, todo.id]
+    );
+    todo.target_date = todayDate;
+    todo.updated_at = ts;
+  } catch (e) {
+    console.error('moveToToday failed:', e);
+  }
 }
 
 function getTagsForTodo(todo) {
@@ -1473,17 +1798,138 @@ async function saveEdit(todo) {
   }
 }
 
+function handleTodoInput(e) {
+  const text = newTodo.value;
+  const cursor = e.target.selectionStart;
+  
+  // 向前寻找光标前的最后一个 '#'
+  const lastHashIndex = text.lastIndexOf('#', cursor - 1);
+  
+  // 检查 '#' 是否存在，并且（它是字符串开头，或者它前面是个空格）
+  if (lastHashIndex !== -1 && (lastHashIndex === 0 || text[lastHashIndex - 1] === ' ')) {
+    // 检查 '#' 和光标之间是否包含空格，如果包含说明这个 hashtag 已经打断了
+    const queryStr = text.substring(lastHashIndex + 1, cursor);
+    if (!queryStr.includes(' ')) {
+      // 触发 Mention
+      mentionState.value = {
+        visible: true,
+        query: queryStr,
+        startIndex: lastHashIndex,
+        selectedIndex: 0
+      };
+      return;
+    }
+  }
+  
+  mentionState.value.visible = false;
+}
+
+function handleTodoKeydown(e) {
+  if (mentionState.value.visible) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const max = filteredMentionTags.value.length;
+      if (max > 0) {
+        mentionState.value.selectedIndex = (mentionState.value.selectedIndex + 1) % max;
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const max = filteredMentionTags.value.length;
+      if (max > 0) {
+        mentionState.value.selectedIndex = (mentionState.value.selectedIndex - 1 + max) % max;
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // 拦截 Enter 键，选中标签
+      if (filteredMentionTags.value.length > 0) {
+        selectMentionTag(filteredMentionTags.value[mentionState.value.selectedIndex]);
+      } else if (mentionState.value.query) {
+        // 如果搜索不到，回车可以直接创建一个新标签 (顺滑体验)
+        createNewMentionTag(mentionState.value.query);
+      }
+    } else if (e.key === 'Escape') {
+      mentionState.value.visible = false;
+    }
+  } else {
+    // 只有在弹窗不可见时，回车才真的提交任务
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTodo();
+    }
+  }
+}
+
+async function createNewMentionTag(tagName) {
+  if (!db) return;
+  try {
+    const color = tagColorPresets[Math.floor(Math.random() * tagColorPresets.length)];
+    const result = await db.execute('INSERT INTO tags (name, color) VALUES (?, ?)', [tagName, color]);
+    const newlyCreated = { id: result.lastInsertId, name: tagName, color };
+    tags.value.unshift(newlyCreated);
+    selectMentionTag(newlyCreated);
+  } catch (e) {
+    console.error('createNewMentionTag failed:', e);
+  }
+}
+
+function selectMentionTag(tag) {
+  const text = newTodo.value;
+  const start = mentionState.value.startIndex;
+  
+  // 把原来的 `#query` 替换成空（因为我们是通过 newTodoSelectedTagIds 挂载标签的）
+  // 或者你想保留文字，这里我们选择去除对应的文字并加入高亮数组
+  const before = text.substring(0, start);
+  const after = text.substring(start + 1 + mentionState.value.query.length);
+  
+  newTodo.value = before + after; // 清除输入的 #标签
+  
+  if (!newTodoSelectedTagIds.value.includes(tag.id)) {
+    newTodoSelectedTagIds.value.push(tag.id);
+  }
+  
+  mentionState.value.visible = false;
+  
+  // 恢复焦点
+  nextTick(() => {
+    if (newTodoInput.value) newTodoInput.value.focus();
+  });
+}
+
 const addTodo = async () => {
-  const text = newTodo.value.trim();
+  let text = newTodo.value.trim();
   if (!text || !db) return;
   try {
     const ts = localNow();
-    const selectedIds = [...newTodoSelectedTagIds.value];
+    let selectedIds = [...newTodoSelectedTagIds.value];
+    
+    // Inline #tag parser
+    const matches = text.match(/#(\S+)/g);
+    if (matches) {
+      for (const match of matches) {
+        const tagName = match.slice(1);
+        const tagObj = tags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+        if (tagObj && !selectedIds.includes(tagObj.id)) {
+          selectedIds.push(tagObj.id);
+        }
+      }
+      // Remove recognized hashtags from text to clean up
+      text = text.replace(/#(\S+)/g, (match) => {
+        const tagName = match.slice(1);
+        const tagObj = tags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+        return tagObj ? '' : match; // only remove if matched a real tag
+      }).trim();
+    }
+    // Prevent empty text submission after tag stripping
+    if (!text) {
+      newTodoSelectedTagIds.value = selectedIds;
+      return; 
+    }
+
     const primaryTagId = selectedIds.length > 0 ? selectedIds[0] : null;
 
     const result = await db.execute(
-      'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count) VALUES (?, 0, 0, ?, ?, ?, 0)',
-      [text, ts, ts, primaryTagId]
+      'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count, target_date) VALUES (?, 0, 0, ?, ?, ?, 0, ?)',
+      [text, ts, ts, primaryTagId, todayDate]
     );
     const todoId = result.lastInsertId;
 
@@ -1507,6 +1953,7 @@ const addTodo = async () => {
       from_yesterday: false,
       created_at: ts,
       updated_at: ts,
+      target_date: todayDate,
       tag_id: primaryTagId,
       rolled_count: 0
     });
@@ -1752,8 +2199,18 @@ async function generateReviewReport() {
   }
 }
 
+// 点击应用空白区域时关闭内联的 tag 浮窗
 onMounted(() => {
   initDB();
+  document.addEventListener('click', (e) => {
+    // 这里简单通过全局点击关闭单例的修改标签弹窗（因为弹窗本身是 @click.stop 阻止冒泡了）
+    activeTodoTagPopoverId.value = null;
+    activeTodoSnoozePopoverId.value = null;
+  });
+  // 初始化后初次自动 focus
+  if (currentView.value === 'today') {
+    nextTick(() => newTodoInput.value?.focus());
+  }
 });
 </script>
 
