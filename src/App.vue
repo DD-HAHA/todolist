@@ -850,13 +850,23 @@
         <div class="space-y-4">
           <button
             type="button"
-            :disabled="seedDemoLoading"
+            :disabled="seedDemoLoading || clearDemoLoading"
             @click="seedDemoData"
             class="w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20"
           >
             {{ seedDemoLoading ? '生成中...' : '生成示例数据' }}
           </button>
-          <p v-if="seedDemoMessage" class="mt-2 text-[11px] text-center" :class="seedDemoMessage.startsWith('\u5df2') ? 'text-green-400' : 'text-amber-400'">{{ seedDemoMessage }}</p>
+          
+          <button
+            type="button"
+            :disabled="seedDemoLoading || clearDemoLoading"
+            @click="clearDemoData"
+            class="w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20"
+          >
+            {{ clearDemoLoading ? '清除中...' : '一键清除体验数据' }}
+          </button>
+          
+          <p v-if="seedDemoMessage" class="mt-2 text-[11px] text-center" :class="seedDemoMessage.includes('失败') ? 'text-amber-400' : 'text-green-400'">{{ seedDemoMessage }}</p>
         </div>
         
         <div class="flex justify-end mt-6">
@@ -1114,6 +1124,7 @@ const snoozeToastMessage = ref('');
 
 // 示例数据生成
 const seedDemoLoading = ref(false);
+const clearDemoLoading = ref(false);
 const seedDemoMessage = ref('');
 
 // 回顾中心状态
@@ -1352,7 +1363,8 @@ async function initDB() {
         completed INTEGER NOT NULL DEFAULT 0,
         from_yesterday INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        is_demo INTEGER NOT NULL DEFAULT 0
       )
     `);
 
@@ -1380,7 +1392,8 @@ async function initDB() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT NOT NULL,
         content TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        is_demo INTEGER NOT NULL DEFAULT 0
       )
     `);
 
@@ -1388,7 +1401,8 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS tags (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        color TEXT NOT NULL
+        color TEXT NOT NULL,
+        is_demo INTEGER NOT NULL DEFAULT 0
       )
     `);
 
@@ -1406,7 +1420,7 @@ async function initDB() {
     await db.execute(`
       CREATE INDEX IF NOT EXISTS idx_todo_tags_tag_id ON todo_tags(tag_id)
     `);
-
+    
     try {
       await db.execute(`ALTER TABLE todos ADD COLUMN from_yesterday INTEGER NOT NULL DEFAULT 0`);
     } catch { /* column already exists */ }
@@ -1416,11 +1430,31 @@ async function initDB() {
     } catch { /* column already exists */ }
 
     try {
-      await db.execute(`ALTER TABLE todos ADD COLUMN rolled_count INTEGER NOT NULL DEFAULT 0`);
+      await db.execute(`ALTER TABLE todos ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`);
+    } catch { /* column already exists */ }
+
+    try {
+      await db.execute(`ALTER TABLE tags ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`);
+    } catch { /* column already exists */ }
+
+    try {
+      await db.execute(`ALTER TABLE archives ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`);
+    } catch { /* column already exists */ }
+
+    try {
+      await db.execute(`ALTER TABLE todos ADD COLUMN rolled_count INTEGER DEFAULT 0`);
     } catch { /* column already exists */ }
 
     try {
       await db.execute(`ALTER TABLE todos ADD COLUMN target_date TEXT`);
+    } catch { /* column already exists */ }
+
+    try {
+      await db.execute(`ALTER TABLE settings ADD COLUMN custom_daily_prompt TEXT DEFAULT ''`);
+    } catch { /* column already exists */ }
+
+    try {
+      await db.execute(`ALTER TABLE settings ADD COLUMN custom_review_prompt TEXT DEFAULT ''`);
     } catch { /* column already exists */ }
 
     dbReady.value = true;
@@ -1430,7 +1464,7 @@ async function initDB() {
     await loadSettings();
     await loadArchives();
     await loadTags();
-    await loadHeatmap();
+    await loadHeatmap(activeTagFilterId.value ?? null);
   } catch (e) {
     console.error('initDB failed:', e);
     initError.value = `数据库初始化失败: ${e.message || e}`;
@@ -1734,7 +1768,7 @@ async function seedDemoData() {
         { name: '规划', color: '#EF4444' }
       ];
       for (const { name, color } of tagList) {
-        const res = await db.execute('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color]);
+        const res = await db.execute('INSERT INTO tags (name, color, is_demo) VALUES (?, ?, 1)', [name, color]);
         tagIds.push(res.lastInsertId);
       }
       const rows = await db.select('SELECT * FROM tags ORDER BY id DESC');
@@ -1768,7 +1802,7 @@ async function seedDemoData() {
         const tagId = tagIds.length > 0 ? tagIds[Math.floor(Math.random() * tagIds.length)] : null;
         const rolled_count = (!completed && d > 0 && Math.random() < 0.3) ? Math.floor(Math.random() * 3) + 1 : 0;
         const res = await db.execute(
-          'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count, target_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count, target_date, is_demo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
           [text, completed ? 1 : 0, rolled_count > 0 ? 1 : 0, created, updated, tagId, rolled_count, dateStr]
         );
         const todoId = res.lastInsertId;
@@ -1786,7 +1820,7 @@ async function seedDemoData() {
     const ts = localNow();
     for (let i = 0; i < archiveContents.length; i++) {
       await db.execute(
-        'INSERT INTO archives (date, content, created_at) VALUES (?, ?, ?)',
+        'INSERT INTO archives (date, content, created_at, is_demo) VALUES (?, ?, ?, 1)',
         [archiveDates[i], archiveContents[i], ts]
       );
     }
@@ -2151,6 +2185,7 @@ function handleTodoInput(e) {
 }
 
 function handleTodoKeydown(e) {
+  if (e.isComposing || e.keyCode === 229) return;
   if (mentionState.value.visible) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -2316,6 +2351,33 @@ const toggleTodo = async (todo) => {
     console.error('toggleTodo failed:', e);
   }
 };
+
+async function clearDemoData() {
+  if (!db) return;
+  clearDemoLoading.value = true;
+  seedDemoMessage.value = '';
+  try {
+    // 1. Delete todo_tags associated with demo todos
+    await db.execute('DELETE FROM todo_tags WHERE todo_id IN (SELECT id FROM todos WHERE is_demo = 1)');
+    // 2. Delete demo todos
+    await db.execute('DELETE FROM todos WHERE is_demo = 1');
+    // 3. Delete demo tags
+    await db.execute('DELETE FROM tags WHERE is_demo = 1');
+    // 4. Delete demo archives
+    await db.execute('DELETE FROM archives WHERE is_demo = 1');
+
+    await loadTodos();
+    await loadTodoTags();
+    await loadHeatmap(activeTagFilterId.value ?? null);
+    await loadArchives();
+    seedDemoMessage.value = '体验数据已全部清理完成。';
+  } catch (e) {
+    console.error('clearDemoData failed:', e);
+    seedDemoMessage.value = '清理失败，请查看控制台。';
+  } finally {
+    clearDemoLoading.value = false;
+  }
+}
 
 // ─── AI Summary ─────────────────────────────────────────────
 
