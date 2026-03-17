@@ -1171,6 +1171,24 @@ html.light {
   border-color: rgba(34, 197, 94, .3);
 }
 
+.settings-card--blue {
+  background: var(--bg-s2);
+  border: 1px solid var(--border-s);
+}
+
+.settings-card--blue:hover {
+  background: var(--bg-s3);
+  border-color: rgba(96, 165, 250, .3);
+}
+
+.settings-card__icon--blue {
+  background: rgba(96, 165, 250, .1);
+}
+
+.settings-card--blue:hover .settings-card__icon--blue {
+  background: rgba(96, 165, 250, .2);
+}
+
 .settings-card__icon {
   width: 40px;
   height: 40px;

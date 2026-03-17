@@ -2,7 +2,7 @@
   <aside class="sidebar">
     <div class="sidebar__logo">
       <img src="../assets/logo_simple_padded.png" alt="FocusLog Logo" class="logo-image" />
-      <span class="logo-text">FocusLog</span>
+      <span class="logo-text">{{ t('appName') }}</span>
     </div>
 
     <nav class="sidebar__nav">
@@ -12,22 +12,28 @@
         :class="['nav-item', currentView === tab.id && 'nav-item--active']"
       >
         <component :is="tab.icon" :size="18" />
-        <span>{{ tab.label }}</span>
+        <span>{{ t(`tabs.${tab.id}`) }}</span>
       </div>
     </nav>
 
     <!-- Theme toggle -->
-    <button type="button" class="theme-toggle-btn" @click="toggleTheme" :title="isDark ? '切换到浅色模式' : '切换到深色模式'">
+    <button type="button" class="theme-toggle-btn" @click="toggleTheme" :title="isDark ? t('theme.light') : t('theme.dark')">
       <component :is="isDark ? Sun : Moon" :size="15" />
-      <span>{{ isDark ? '浅色模式' : '深色模式' }}</span>
+      <span>{{ isDark ? t('theme.light') : t('theme.dark') }}</span>
+    </button>
+
+    <!-- Language toggle -->
+    <button type="button" class="theme-toggle-btn" @click="toggleLanguage" :title="t('language.title')">
+      <Languages :size="15" />
+      <span>{{ currentLanguage === 'zh-CN' ? '简体中文' : 'English' }}</span>
     </button>
 
     <div class="sidebar__tags">
       <div class="section-header">
-        <span>标签</span>
-        <button v-if="activeTagFilterId" type="button" class="section-clear" @click="clearTagFilter">清除筛选</button>
+        <span>{{ t('sidebar.tags') }}</span>
+        <button v-if="activeTagFilterId" type="button" class="section-clear" @click="clearTagFilter">{{ t('sidebar.clearFilter') }}</button>
       </div>
-      <div v-if="tags.length === 0" class="sidebar__empty">暂无标签，可在任务输入框标签弹窗中点击「设置」添加。</div>
+      <div v-if="tags.length === 0" class="sidebar__empty">{{ t('sidebar.noTags') }}</div>
       <div v-else>
         <button
           v-for="tag in tags" :key="tag.id"
@@ -47,7 +53,7 @@
     <div class="sidebar__status">
       <div class="status-row">
         <div :class="['status-dot', dbReady ? 'status-dot--ok' : 'status-dot--wait']"></div>
-        <span>{{ dbReady ? 'SQLite 已连接: focus_log.db' : '正在连接数据库...' }}</span>
+        <span>{{ dbReady ? t('sidebar.databaseConnected') : t('sidebar.databaseConnecting') }}</span>
       </div>
       <p v-if="initError" class="status-error">{{ initError }}</p>
     </div>
@@ -55,20 +61,27 @@
 </template>
 
 <script setup>
-import { LayoutDashboard, Calendar, Archive, Sparkles, Settings, CalendarClock, Sun, Moon } from 'lucide-vue-next';
+import { LayoutDashboard, Calendar, Archive, Sparkles, Settings, CalendarClock, Sun, Moon, Languages } from 'lucide-vue-next';
 import { tags } from '../composables/useTags.js';
 import { activeTagFilterId, tagIncompleteCount, toggleTagFilter, clearTagFilter } from '../composables/useTodos.js';
 import { isDark, toggleTheme } from '../composables/useTheme.js';
+import { useI18n } from '../composables/useI18n.js';
+
+const { t, currentLanguage, setLanguage } = useI18n();
 
 defineProps({ currentView: { type: String, required: true }, dbReady: { type: Boolean, default: false }, initError: { type: String, default: '' } });
 defineEmits(['update:currentView']);
 
 const tabs = [
-  { id: 'today',    label: '今日待办', icon: LayoutDashboard },
-  { id: 'upcoming', label: '未来规划', icon: CalendarClock },
-  { id: 'history',  label: '历史回顾', icon: Calendar },
-  { id: 'review',   label: '回顾中心', icon: Sparkles },
-  { id: 'archive',  label: '总结存档', icon: Archive },
-  { id: 'settings', label: '设置',     icon: Settings },
+  { id: 'today',    icon: LayoutDashboard },
+  { id: 'upcoming', icon: CalendarClock },
+  { id: 'history',  icon: Calendar },
+  { id: 'review',   icon: Sparkles },
+  { id: 'archive',  icon: Archive },
+  { id: 'settings', icon: Settings },
 ];
+
+function toggleLanguage() {
+  setLanguage(currentLanguage.value === 'zh-CN' ? 'en-US' : 'zh-CN');
+}
 </script>

@@ -12,7 +12,7 @@
 
       <button v-if="currentView === 'today'" @click="generateSummary" class="btn-fab">
         <Sparkles :size="16" />
-        <span>生成今日总结</span>
+        <span>{{ t('summary.generate') }}</span>
       </button>
 
       <div v-if="archiveToastVisible" class="toast">{{ archiveToastMessage }}</div>
@@ -31,6 +31,10 @@
     <DailyPromptModal  v-if="isDailyPromptOpen"  :showToast="showToast" />
     <ReviewPromptModal v-if="isReviewPromptOpen" :showToast="showToast" />
     <TagManagerModal   v-if="isTagManagerOpen" />
+    <DataSyncModal     v-if="isDataSyncModalOpen" :showToast="showToast" />
+    <WebDavSettingsModal v-if="isWebDavSettingsOpen" :showToast="showToast" />
+    <AutoBackupSettingsModal v-if="isAutoBackupSettingsOpen" :showToast="showToast" />
+    <ThemeSettingsModal v-if="isThemeSettingsOpen" :showToast="showToast" />
   </div>
 </template>
 
@@ -44,6 +48,10 @@ import DemoDataModal     from './components/modals/DemoDataModal.vue';
 import DailyPromptModal  from './components/modals/DailyPromptModal.vue';
 import ReviewPromptModal from './components/modals/ReviewPromptModal.vue';
 import TagManagerModal   from './components/modals/TagManagerModal.vue';
+import DataSyncModal     from './components/modals/DataSyncModal.vue';
+import WebDavSettingsModal from './components/modals/WebDavSettingsModal.vue';
+import AutoBackupSettingsModal from './components/modals/AutoBackupSettingsModal.vue';
+import ThemeSettingsModal from './components/modals/ThemeSettingsModal.vue';
 import TodayView    from './views/TodayView.vue';
 import UpcomingView from './views/UpcomingView.vue';
 import HistoryView  from './views/HistoryView.vue';
@@ -58,6 +66,10 @@ import { loadArchives, saveArchive, saveReviewReport } from './composables/useAr
 import { loadSettings, isApiSettingsOpen, isDailyPromptOpen, isReviewPromptOpen } from './composables/useSettings.js';
 import { isDemoDataModalOpen } from './composables/useDemoData.js';
 import { isSummaryOpen, summaryContent, generateSummary, reviewContent, reviewStartDate, reviewFileName } from './composables/useAI.js';
+import { isDataSyncModalOpen, isWebDavSettingsOpen, isAutoBackupSettingsOpen, isThemeSettingsOpen } from './composables/useDataSync.js';
+import { useI18n } from './composables/useI18n.js';
+
+const { t } = useI18n();
 
 const currentView = ref('today');
 const dbReady = ref(false);
@@ -98,6 +110,14 @@ async function initDB() {
       `ALTER TABLE settings ADD COLUMN api_model TEXT DEFAULT 'deepseek-chat'`,
       `ALTER TABLE settings ADD COLUMN custom_daily_prompt TEXT DEFAULT ''`,
       `ALTER TABLE settings ADD COLUMN custom_review_prompt TEXT DEFAULT ''`,
+      `ALTER TABLE settings ADD COLUMN auto_backup_enabled INTEGER DEFAULT 0`,
+      `ALTER TABLE settings ADD COLUMN auto_backup_interval TEXT DEFAULT 'daily'`,
+      `ALTER TABLE settings ADD COLUMN auto_backup_mode TEXT DEFAULT 'overwrite'`,
+      `ALTER TABLE settings ADD COLUMN auto_backup_retention INTEGER DEFAULT 5`,
+      `ALTER TABLE settings ADD COLUMN last_backup_time TEXT`,
+      `ALTER TABLE settings ADD COLUMN theme_mode TEXT DEFAULT 'auto'`,
+      `ALTER TABLE settings ADD COLUMN dark_start_time TEXT DEFAULT '22:00'`,
+      `ALTER TABLE settings ADD COLUMN dark_end_time TEXT DEFAULT '07:00'`,
     ];
     for (const sql of migrations) { try { await d.execute(sql); } catch (_) {} }
     dbReady.value = true;
@@ -108,9 +128,16 @@ async function initDB() {
     await loadArchives();
     await loadTags();
     await loadHeatmap(activeTagFilterId.value ?? null);
+    
+    const { loadAutoBackupSettings, startAutoBackup } = await import('./composables/useAutoBackup.js');
+    await loadAutoBackupSettings();
+    startAutoBackup();
+    
+    const { loadThemeSettings } = await import('./composables/useThemeSettings.js');
+    await loadThemeSettings();
   } catch (e) {
     console.error('initDB failed:', e);
-    initError.value = `数据库初始化失败: ${e.message || e}`;
+    initError.value = t('toast.error') + `: ${e.message || e}`;
   }
 }
 
