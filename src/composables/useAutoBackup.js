@@ -1,7 +1,9 @@
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch } from 'vue';
 import { db } from './useDb.js';
 import { backupToWebDav, syncStatus, isSyncing } from './useDataSync.js';
-import { useI18n } from './useI18n.js';
+import i18n from '../locales/index.js';
+
+const t = (...args) => i18n.global.t(...args);
 
 export const autoBackupEnabled = ref(false);
 export const autoBackupInterval = ref('daily');
@@ -10,8 +12,6 @@ export const autoBackupRetention = ref(5);
 export const lastBackupTime = ref('');
 
 let backupTimer = null;
-
-const { t } = useI18n();
 
 export async function loadAutoBackupSettings() {
   try {

@@ -241,7 +241,8 @@ export async function toggleTodo(todo) {
     
     if (newCompleted) {
       const { sendNotification } = await import('./useDataSync.js');
-      const { t } = await import('./useI18n.js');
+      const { default: i18n } = await import('../locales/index.js');
+      const t = i18n.global.t.bind(i18n.global);
       sendNotification(t('notification.taskCompleted'), `"${todo.text}" ` + t('todo.completed'));
     }
   } catch (e) {

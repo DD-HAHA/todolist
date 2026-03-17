@@ -1,6 +1,6 @@
-import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { db } from './useDb.js';
 import { theme, isDark, toggleTheme } from './useTheme.js';
+import { themeMode, darkStartTime, darkEndTime } from './useDataSync.js';
 
 let themeCheckTimer = null;
 
@@ -14,6 +14,7 @@ export async function loadThemeSettings() {
       darkEndTime.value = row.dark_end_time || '07:00';
       applyThemeMode();
     }
+    startThemeSchedule(); // 原 onMounted 逻辑：定时器在 scheduled 模式下生效
   } catch (e) {
     console.error('loadThemeSettings failed:', e);
   }
@@ -108,11 +109,3 @@ function stopThemeSchedule() {
     themeCheckTimer = null;
   }
 }
-
-onMounted(() => {
-  startThemeSchedule();
-});
-
-onUnmounted(() => {
-  stopThemeSchedule();
-});

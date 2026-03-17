@@ -2,7 +2,10 @@ import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { db } from './useDb.js';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useI18n } from './useI18n.js';
+import i18n from '../locales/index.js';
+
+// 使用 i18n.global.t 避免在模块顶层调用 useI18n（必须在 setup 中）
+const t = (...args) => i18n.global.t(...args);
 
 export const isDataSyncModalOpen = ref(false);
 export const isWebDavSettingsOpen = ref(false);
@@ -20,8 +23,6 @@ export const webdavPath = ref('/focuslog-backup.json');
 
 export const syncStatus = ref('');
 export const isSyncing = ref(false);
-
-const { t } = useI18n();
 
 export function openDataSyncModal() {
   isDataSyncModalOpen.value = true;

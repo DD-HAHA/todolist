@@ -20,11 +20,11 @@
         <h3 class="settings-card__title">{{ t('settings.autoBackup.title') }}</h3>
         <p class="settings-card__desc">{{ t('settings.autoBackup.desc') }}</p>
       </div>
-      <div @click="isThemeSettingsOpen = true" class="settings-card settings-card--orange">
+      <!-- <div @click="isThemeSettingsOpen = true" class="settings-card settings-card--orange">
         <div class="settings-card__icon settings-card__icon--orange"><Sun :size="20" color="var(--orange-400)" /></div>
         <h3 class="settings-card__title">{{ t('settings.themeSettings.title') }}</h3>
         <p class="settings-card__desc">{{ t('settings.themeSettings.desc') }}</p>
-      </div>
+      </div> -->
       <div @click="openDailyPrompt" class="settings-card settings-card--cyan">
         <div class="settings-card__icon settings-card__icon--cyan"><Sparkles :size="20" color="var(--cyan-400)" /></div>
         <h3 class="settings-card__title">{{ t('settings.dailyPrompt.title') }}</h3>

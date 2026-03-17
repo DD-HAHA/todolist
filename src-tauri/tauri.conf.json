@@ -42,8 +42,6 @@
     }
   },
   "plugins": {
-    "notification": {
-      "all": true
-    }
+    "notification": null
   }
 }
