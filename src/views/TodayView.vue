@@ -200,6 +200,9 @@ import {
 import { tags, tagColorPresets } from '../composables/useTags.js';
 import { heatmapWeeks, heatmapLoading, heatmapTooltip, heatmapScrollEl, showHeatmapTooltip, hideHeatmapTooltip } from '../composables/useHeatmap.js';
 import { db } from '../composables/useDb.js';
+import { useI18n } from '../composables/useI18n.js';
+
+const { t } = useI18n();
 
 const emit = defineEmits(['openTagManager']);
 const newTodoText = ref('');

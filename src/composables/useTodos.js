@@ -238,6 +238,12 @@ export async function toggleTodo(todo) {
     );
     todo.completed = newCompleted;
     todo.updated_at = ts;
+    
+    if (newCompleted) {
+      const { sendNotification } = await import('./useDataSync.js');
+      const { t } = await import('./useI18n.js');
+      sendNotification(t('notification.taskCompleted'), `"${todo.text}" ` + t('todo.completed'));
+    }
   } catch (e) {
     console.error('toggleTodo failed:', e);
   }

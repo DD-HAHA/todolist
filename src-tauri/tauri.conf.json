@@ -40,5 +40,10 @@
     "security": {
       "csp": null
     }
+  },
+  "plugins": {
+    "notification": {
+      "all": true
+    }
   }
 }
