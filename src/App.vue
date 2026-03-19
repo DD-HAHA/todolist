@@ -3,6 +3,18 @@
     <AppSidebar :currentView="currentView" :dbReady="dbReady" :initError="initError" @update:currentView="currentView = $event" />
 
     <main class="main-content">
+      <!-- 右上角快捷按钮 -->
+      <div class="top-right-actions">
+        <button type="button" class="icon-btn" @click="toggleTheme" :title="isDark ? t('theme.light') : t('theme.dark')">
+          <component :is="isDark ? Sun : Moon" :size="16" />
+          <span class="icon-btn__label">{{ isDark ? t('theme.light') : t('theme.dark') }}</span>
+        </button>
+        <button type="button" class="icon-btn" @click="toggleLanguage" :title="t('language.title')">
+          <Languages :size="16" />
+          <span class="icon-btn__label">{{ currentLanguage === 'zh-CN' ? 'EN' : '中文' }}</span>
+        </button>
+      </div>
+
       <TodayView    v-show="currentView === 'today'"    ref="todayViewRef" @openTagManager="openTagManager" />
       <UpcomingView v-show="currentView === 'upcoming'" />
       <HistoryView  v-show="currentView === 'history'" />
@@ -39,8 +51,8 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted } from 'vue';
-import { Sparkles, Check } from 'lucide-vue-next';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { Sparkles, Check, Sun, Moon, Languages } from 'lucide-vue-next';
 import AppSidebar      from './components/AppSidebar.vue';
 import SummaryDrawer   from './components/SummaryDrawer.vue';
 import ApiSettingsModal  from './components/modals/ApiSettingsModal.vue';
@@ -68,8 +80,13 @@ import { isDemoDataModalOpen } from './composables/useDemoData.js';
 import { isSummaryOpen, summaryContent, generateSummary, reviewContent, reviewStartDate, reviewFileName } from './composables/useAI.js';
 import { isDataSyncModalOpen, isWebDavSettingsOpen, isAutoBackupSettingsOpen, isThemeSettingsOpen } from './composables/useDataSync.js';
 import { useI18n } from './composables/useI18n.js';
+import { isDark, toggleTheme } from './composables/useTheme.js';
 
-const { t } = useI18n();
+const { t, currentLanguage, setLanguage } = useI18n();
+
+function toggleLanguage() {
+  setLanguage(currentLanguage.value === 'zh-CN' ? 'en-US' : 'zh-CN');
+}
 
 const currentView = ref('today');
 const dbReady = ref(false);
@@ -158,12 +175,18 @@ async function handleSaveReview() {
 watch(activeTagFilterId, (tagId) => { if (db.value) loadHeatmap(tagId ?? null); });
 watch(currentView, (val) => { if (val === 'today') nextTick(() => todayViewRef.value?.focus()); });
 
+function closeAllPopovers() {
+  activeTodoTagPopoverId.value = null;
+  activeTodoSnoozePopoverId.value = null;
+}
+
 onMounted(() => {
   initDB();
-  document.addEventListener('click', () => {
-    activeTodoTagPopoverId.value = null;
-    activeTodoSnoozePopoverId.value = null;
-  });
+  document.addEventListener('click', closeAllPopovers);
   nextTick(() => todayViewRef.value?.focus());
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeAllPopovers);
 });
 </script>

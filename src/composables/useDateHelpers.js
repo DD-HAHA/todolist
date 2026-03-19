@@ -1,11 +1,17 @@
 // ── Date utility helpers ──────────────────────────────────────
 export const pad = (n) => String(n).padStart(2, '0');
 
-const now = new Date();
 export const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
-export const todayStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${weekDays[now.getDay()]}`;
-export const todayDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+export function getTodayStr() {
+  const now = new Date();
+  return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${weekDays[now.getDay()]}`;
+}
+
+export function getTodayDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 
 export function localNow() {
   const d = new Date();
@@ -19,8 +25,10 @@ export function getDateNDaysAgo(n) {
 }
 
 export function formatDateLabel(dateStr) {
-  if (dateStr === todayDate) return '今天';
+  const today = getTodayDate();
+  if (dateStr === today) return '今天';
   const d = new Date(dateStr + 'T00:00:00');
+  const now = new Date();
   const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
   if (diff === 1) return '昨天';
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 · ${weekDays[d.getDay()]}`;
@@ -28,7 +36,7 @@ export function formatDateLabel(dateStr) {
 
 export function getIsoWeek(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
-  if (Number.isNaN(d.getTime())) return { year: now.getFullYear(), week: 1 };
+  if (Number.isNaN(d.getTime())) return { year: new Date().getFullYear(), week: 1 };
   const target = new Date(d.valueOf());
   const dayNr = (d.getDay() + 6) % 7;
   target.setDate(target.getDate() - dayNr + 3);

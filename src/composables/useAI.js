@@ -9,7 +9,7 @@ import {
   apiKey, apiBaseUrl, apiModel,
   customDailyPrompt, customReviewPrompt,
 } from './useSettings.js';
-import { todayDate, todayStr, getIsoWeek, getDateRangeDates, pad, localNow } from './useDateHelpers.js';
+import { getTodayDate, getTodayStr, getIsoWeek, getDateRangeDates, pad, localNow } from './useDateHelpers.js';
 
 // ── Summary state ─────────────────────────────────────────────
 export const isSummaryOpen = ref(false);
@@ -29,7 +29,7 @@ export const reviewStatsText = ref('');
 // Initialize default review date range
 import { getDateNDaysAgo } from './useDateHelpers.js';
 reviewStartDate.value = getDateNDaysAgo(6);
-reviewEndDate.value = todayDate;
+reviewEndDate.value = getTodayDate();
 
 // ── AI call helper ────────────────────────────────────────────
 async function callAI(systemPrompt, userPrompt) {
@@ -78,13 +78,14 @@ export async function generateSummary() {
   try {
     const delayed = await db.value.select(
       'SELECT text, rolled_count FROM todos WHERE completed = 0 AND rolled_count > 3 AND date(created_at) <= date(?)',
-      [todayDate]
+      [getTodayDate()]
     );
     if (delayed.length > 0) {
       delayedTaskList = delayed.map((t, i) => `${i + 1}. ${t.text}（已拖延 ${t.rolled_count} 天）`).join('\n');
     }
   } catch (_) { }
 
+  const todayStr = getTodayStr();
   const userContent = delayedTaskList
     ? `今天是 ${todayStr}。以下是今日已完成的任务列表：\n${taskList}\n\n以下任务今日仍未完成且已被多次拖延：\n${delayedTaskList}\n如果发现有任务被反复拖延，请用一句话幽默地提醒我，或者建议我是否应该拆解这个任务。`
     : `今天是 ${todayStr}。以下是今日已完成的任务列表：\n${taskList}`;
@@ -173,7 +174,7 @@ export async function generateReviewReport() {
 
     reviewContent.value = await callAI(systemPrompt, userPrompt);
 
-    const { year, week } = getIsoWeek(start || todayDate);
+    const { year, week } = getIsoWeek(start || getTodayDate());
     reviewFileName.value = `Weekly_${year}_W${pad(week)}.md`;
   } catch (e) {
     console.error('generateReviewReport failed:', e);

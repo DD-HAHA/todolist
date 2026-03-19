@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { db } from './useDb.js';
 import { tags } from './useTags.js';
-import { localNow, todayDate, pad } from './useDateHelpers.js';
+import { localNow, getTodayDate, pad } from './useDateHelpers.js';
 
 export const todos = ref([]);
 export const todoTagsByTodoId = ref({});
@@ -38,7 +38,7 @@ export const filteredCompletedTodos = computed(() => {
 export const displayedActiveTodos = computed(() => {
   const list = filteredActiveTodos.value;
   const date = heatmapSelectedDate.value;
-  if (!date) return list.filter(t => (t.target_date || t.created_at.slice(0, 10)) <= todayDate);
+  if (!date) return list.filter(t => (t.target_date || t.created_at.slice(0, 10)) <= getTodayDate());
   return list.filter(t => (t.created_at || '').slice(0, 10) === date);
 });
 
@@ -46,16 +46,16 @@ export const displayedCompletedTodos = computed(() => {
   const list = filteredCompletedTodos.value;
   const date = heatmapSelectedDate.value;
   if (!date) return list.filter(t =>
-    (t.updated_at || '').slice(0, 10) === todayDate ||
-    t.target_date === todayDate ||
-    t.created_at.slice(0, 10) === todayDate
+    (t.updated_at || '').slice(0, 10) === getTodayDate() ||
+    t.target_date === getTodayDate() ||
+    t.created_at.slice(0, 10) === getTodayDate()
   );
   return list.filter(t => (t.created_at || '').slice(0, 10) === date);
 });
 
 export const displayedUpcomingTodos = computed(() =>
   filteredActiveTodos.value
-    .filter(t => t.target_date && t.target_date > todayDate)
+    .filter(t => t.target_date && t.target_date > getTodayDate())
     .sort((a, b) => a.target_date.localeCompare(b.target_date))
 );
 
@@ -170,7 +170,7 @@ export async function rolloverTodos() {
     `UPDATE todos SET created_at=?, updated_at=?, from_yesterday=1,
      rolled_count=COALESCE(rolled_count,0)+1
      WHERE completed=0 AND date(created_at)<date(?)`,
-    [ts, ts, todayDate]
+    [ts, ts, getTodayDate()]
   );
 }
 
@@ -197,7 +197,7 @@ export async function addTodo(text, selectedIds, createTagPopoverOpen) {
     const primaryTagId = selectedIds.length > 0 ? selectedIds[0] : null;
     const result = await db.value.execute(
       'INSERT INTO todos (text, completed, from_yesterday, created_at, updated_at, tag_id, rolled_count, target_date) VALUES (?, 0, 0, ?, ?, ?, 0, ?)',
-      [cleanText, ts, ts, primaryTagId, todayDate]
+      [cleanText, ts, ts, primaryTagId, getTodayDate()]
     );
     const todoId = result.lastInsertId;
     for (const tagId of selectedIds) {
@@ -206,7 +206,7 @@ export async function addTodo(text, selectedIds, createTagPopoverOpen) {
     todoTagsByTodoId.value = { ...todoTagsByTodoId.value, [todoId]: [...selectedIds] };
     todos.value.unshift({
       id: todoId, text: cleanText, completed: false, from_yesterday: false,
-      created_at: ts, updated_at: ts, target_date: todayDate, tag_id: primaryTagId, rolled_count: 0,
+      created_at: ts, updated_at: ts, target_date: getTodayDate(), tag_id: primaryTagId, rolled_count: 0,
     });
     newTodoSelectedTagIds.value = [];
     if (createTagPopoverOpen) createTagPopoverOpen.value = false;
@@ -322,11 +322,12 @@ export async function moveToToday(todo) {
   if (!db.value) return;
   try {
     const ts = localNow();
+    const today = getTodayDate();
     await db.value.execute(
       'UPDATE todos SET target_date = ?, updated_at = ? WHERE id = ?',
-      [todayDate, ts, todo.id]
+      [today, ts, todo.id]
     );
-    todo.target_date = todayDate;
+    todo.target_date = today;
     todo.updated_at = ts;
   } catch (e) {
     console.error('moveToToday failed:', e);

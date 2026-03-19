@@ -1,7 +1,7 @@
 // ── Archives composable ────────────────────────────────────────
 import { ref } from 'vue';
 import { db } from './useDb.js';
-import { localNow, todayDate, todayStr, pad, getIsoWeek } from './useDateHelpers.js';
+import { localNow, getTodayDate, getTodayStr, pad, getIsoWeek } from './useDateHelpers.js';
 import { writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { documentDir, join } from '@tauri-apps/api/path';
 
@@ -16,6 +16,8 @@ export async function saveArchive(content, showToast) {
   if (!db.value || !content) return;
   try {
     const ts = localNow();
+    const todayStr = getTodayStr();
+    const todayDate = getTodayDate();
     const result = await db.value.execute(
       'INSERT INTO archives (date, content, created_at) VALUES (?, ?, ?)',
       [todayStr, content, ts]
@@ -44,7 +46,7 @@ export async function saveReviewReport(reviewContent, reviewStartDate, reviewFil
     await mkdir(folder, { recursive: true });
     let name = (reviewFileName || '').trim();
     if (!name) {
-      const { year, week } = getIsoWeek(reviewStartDate || todayDate);
+      const { year, week } = getIsoWeek(reviewStartDate || getTodayDate());
       name = `Weekly_${year}_W${pad(week)}`;
     }
     if (!name.toLowerCase().endsWith('.md')) name += '.md';

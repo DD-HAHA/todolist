@@ -2,7 +2,7 @@
   <div class="view-container">
     <header class="view-header--today">
       <h1 class="view-title">Focus.</h1>
-      <p class="view-subtitle">今天是 {{ todayStr }}</p>
+      <p class="view-subtitle">今天是 {{ getTodayStr() }}</p>
     </header>
 
     <!-- Heatmap -->
@@ -188,7 +188,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue';
 import { Plus, Check, Trash2, Tags, Flame, Pencil, Clock } from 'lucide-vue-next';
-import { todayStr } from '../composables/useDateHelpers.js';
+import { getTodayStr } from '../composables/useDateHelpers.js';
 import {
   todos, todoTagsByTodoId, newTodoSelectedTagIds, selectedTagsForNewTodo,
   displayedActiveTodos, displayedCompletedTodos, activeTagFilterId,

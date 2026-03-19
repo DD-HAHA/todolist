@@ -16,18 +16,6 @@
       </div>
     </nav>
 
-    <!-- Theme toggle -->
-    <button type="button" class="theme-toggle-btn" @click="toggleTheme" :title="isDark ? t('theme.light') : t('theme.dark')">
-      <component :is="isDark ? Sun : Moon" :size="15" />
-      <span>{{ isDark ? t('theme.light') : t('theme.dark') }}</span>
-    </button>
-
-    <!-- Language toggle -->
-    <button type="button" class="theme-toggle-btn" @click="toggleLanguage" :title="t('language.title')">
-      <Languages :size="15" />
-      <span>{{ currentLanguage === 'zh-CN' ? '简体中文' : 'English' }}</span>
-    </button>
-
     <div class="sidebar__tags">
       <div class="section-header">
         <span>{{ t('sidebar.tags') }}</span>
@@ -61,13 +49,12 @@
 </template>
 
 <script setup>
-import { LayoutDashboard, Calendar, Archive, Sparkles, Settings, CalendarClock, Sun, Moon, Languages } from 'lucide-vue-next';
+import { LayoutDashboard, Calendar, Archive, Sparkles, Settings, CalendarClock } from 'lucide-vue-next';
 import { tags } from '../composables/useTags.js';
 import { activeTagFilterId, tagIncompleteCount, toggleTagFilter, clearTagFilter } from '../composables/useTodos.js';
-import { isDark, toggleTheme } from '../composables/useTheme.js';
 import { useI18n } from '../composables/useI18n.js';
 
-const { t, currentLanguage, setLanguage } = useI18n();
+const { t } = useI18n();
 
 defineProps({ currentView: { type: String, required: true }, dbReady: { type: Boolean, default: false }, initError: { type: String, default: '' } });
 defineEmits(['update:currentView']);
@@ -80,8 +67,4 @@ const tabs = [
   { id: 'archive',  icon: Archive },
   { id: 'settings', icon: Settings },
 ];
-
-function toggleLanguage() {
-  setLanguage(currentLanguage.value === 'zh-CN' ? 'en-US' : 'zh-CN');
-}
 </script>
