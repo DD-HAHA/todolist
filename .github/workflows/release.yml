@@ -48,6 +48,6 @@ jobs:
           tagName: v__VERSION__ # tauri-action automatically replaces \_\_VERSION\_\_ with the app version
           releaseName: 'FocusLog v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
